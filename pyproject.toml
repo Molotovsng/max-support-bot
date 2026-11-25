@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "max-support-bot"
-version = "0.1.0"
-description = "Anonymized MAX support bot portfolio project"
+version = "0.2.0"
+description = "Department routing and specialist replies for appeals in MAX"
 requires-python = ">=3.11"
 dependencies = ["certifi>=2026.5.20", "fastapi>=0.116.0", "httpx>=0.28.0", "python-dotenv>=1.0.1", "uvicorn>=0.35.0"]
 

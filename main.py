@@ -13,18 +13,20 @@ import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from config import Settings, load_settings
+from constants import DEFAULT_DEPARTMENT_CHAT_IDS
 from maxbot.client import MaxClient
 from maxbot.instance_lock import InstanceLock
-from maxbot.logging_utils import PrivateExceptionFormatter, log_failure
+from maxbot.logging_utils import RuntimeEventFilter, RuntimeEventFormatter, log_failure
 from maxbot.normalizer import normalize_update
 from maxbot.service import BotService
 from maxbot.storage import AppealLinkRegistry, UserRegistry
 
-LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 
 
 def configure_logging(log_file: str | Path = "bot.log") -> None:
-    formatter = PrivateExceptionFormatter(LOG_FORMAT)
+    formatter = RuntimeEventFormatter(LOG_FORMAT)
+    event_filter = RuntimeEventFilter()
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
@@ -34,11 +36,13 @@ def configure_logging(log_file: str | Path = "bot.log") -> None:
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
+    stream_handler.addFilter(event_filter)
 
     file_handler = RotatingFileHandler(
         log_file, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8", delay=True,
     )
     file_handler.setFormatter(formatter)
+    file_handler.addFilter(event_filter)
 
     root_logger.addHandler(stream_handler)
     root_logger.addHandler(file_handler)
@@ -53,7 +57,8 @@ logger = logging.getLogger(__name__)
 def _log_polling_network_warning(settings: Settings, message: str, exc: Exception) -> None:
     if settings.suppress_polling_network_errors:
         return
-    logger.warning("%s (error_type=%s)", message, type(exc).__name__)
+    error_type = type(exc).__name__
+    logger.warning("%s (error_type=%s)", message, error_type, extra={"safe_event": message, "safe_error_type": error_type})
 
 
 def build_service(settings: Settings) -> BotService:
@@ -65,7 +70,12 @@ def build_service(settings: Settings) -> BotService:
     )
     registry = UserRegistry(settings.users_file)
     appeal_links = AppealLinkRegistry(str(Path(settings.users_file).with_name("appeal_links.json")))
-    return BotService(client, registry, appeal_links)
+    return BotService(
+        client, registry, appeal_links,
+        department_chat_ids=settings.department_chat_ids,
+        department_contacts=settings.department_contacts,
+        specialist_ids=settings.specialist_ids,
+    )
 
 
 async def process_update(service: BotService, update: dict) -> None:
@@ -127,12 +137,7 @@ def create_app(settings: Settings, service: BotService) -> FastAPI:
 
 async def run_polling(settings: Settings, service: BotService) -> None:
     marker: int | None = None
-    logger.info(
-        "Starting MAX bot in polling mode timeout=%s limit=%s trust_env_proxy=%s",
-        settings.max_polling_timeout,
-        settings.max_polling_limit,
-        settings.httpx_trust_env,
-    )
+    logger.info("MAX bot started in polling mode")
     try:
         while True:
             try:
@@ -194,6 +199,8 @@ async def run_polling(settings: Settings, service: BotService) -> None:
 def main() -> None:
     configure_logging()
     settings = load_settings()
+    if set(settings.department_chat_ids.values()) & set(DEFAULT_DEPARTMENT_CHAT_IDS.values()):
+        raise ValueError("Replace the sample department chat IDs before starting")
     service = build_service(settings)
     instance_lock = InstanceLock()
     instance_lock.acquire()
@@ -201,7 +208,7 @@ def main() -> None:
 
     if settings.use_webhook:
         app = create_app(settings, service)
-        logger.info("Starting MAX bot in webhook mode")
+        logger.info("MAX bot started in webhook mode")
         uvicorn.run(app, host=settings.app_host, port=settings.app_port, access_log=False, log_config=None)
         return
 
