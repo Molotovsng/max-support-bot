@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+STATE_SELECT_DEPARTMENT = "select_department"
 STATE_SELECT_USER_TYPE = "select_user_type"
 STATE_SELECT_CONTACT_MODE = "select_contact_mode"
 STATE_WAITING_MESSAGE = "waiting_message"
 
-# Fictional IDs; replace with your own test chat and specialists before connecting.
-DESTINATION_CHAT_ID = -100000000001
+# Fictional fixtures; configure real test chats and specialists in .env.
+DEPARTMENTS = {
+    "economic_security": "Экономическая безопасность",
+    "store_security": "Безопасность магазинов",
+    "logistics_security": "Безопасность складов и логистики",
+    "information_security": "Информационная безопасность",
+    "security_management": "Руководство службы безопасности",
+}
+DEFAULT_DEPARTMENT_CHAT_IDS = dict(zip(DEPARTMENTS, range(-100000000001, -100000000006, -1)))
+DESTINATION_CHAT_ID = DEFAULT_DEPARTMENT_CHAT_IDS["economic_security"]
 SPECIALIST_IDS = {
     9001,
 }
@@ -13,6 +22,7 @@ SPECIALIST_IDS = {
 USER_TYPES = {
     "employee": "Сотрудник",
     "contractor": "Контрагент",
+    "individual": "Частное лицо",
 }
 
 CONTACT_MODES = {
@@ -22,15 +32,14 @@ CONTACT_MODES = {
 
 BUTTON_USER_EMPLOYEE = "Сотрудник"
 BUTTON_USER_CONTRACTOR = "Контрагент"
+BUTTON_USER_INDIVIDUAL = "Частное лицо"
 BUTTON_SEND_ANONYMOUS = "Отправить анонимное обращение"
 BUTTON_SEND_IDENTIFIED = "Отправить обращение с обратной связью"
 BUTTON_BACK_TO_START = "Вернуться в начало"
 
 WELCOME_TEXT = (
-    "👋 *Демонстрационная служба поддержки*\n\n"
-    "Сюда можно направить вопрос или описать проблему.\n\n"
-    "Сначала выберите свою категорию и удобный режим общения.\n\n"
-    "Сначала выберите тип пользователя:"
+    "*Приём обращений в службу безопасности*\n\n"
+    "Выберите направление, в которое хотите отправить обращение."
 )
 
 USER_TYPE_PROMPT = "Выберите тип пользователя:"
@@ -51,12 +60,7 @@ MESSAGE_PROMPT_IDENTIFIED = (
     "Специалист сможет ответить вам в этом чате через бота."
 )
 
-FALLBACK_TEXT = (
-    "Пожалуйста, выберите тип пользователя и формат обращения кнопками ниже.\n"
-    "Если кнопки в MAX не срабатывают, отправьте сообщением: "
-    f"«{BUTTON_USER_EMPLOYEE}», «{BUTTON_USER_CONTRACTOR}», "
-    f"«{BUTTON_SEND_ANONYMOUS}» или «{BUTTON_SEND_IDENTIFIED}»."
-)
+FALLBACK_TEXT = "Продолжите с помощью кнопок ниже. Название кнопки можно отправить текстом."
 
 DELIVERY_SUCCESS_TEXT = (
     "✅ Сообщение отправлено в службу поддержки."

@@ -23,6 +23,7 @@ class PrivacyTests(unittest.IsolatedAsyncioTestCase):
             links = DummyAppealLinks()
             service = BotService(client, DummyRegistry(), links)
             session = service._session_for(987654321)
+            session.department_key = "economic_security"
             session.state, session.user_type, session.is_anonymous = STATE_WAITING_MESSAGE, "employee", anonymous
             event = IncomingEvent(update_type="message_created", timestamp=123456789, user_id=987654321, chat_id=876543210, chat_type="dialog", text="PRIVATE_APPEAL_TEXT", raw={"PRIVATE_RAW": "PRIVATE_TOKEN"})
             with self.assertLogs("maxbot.service", level="DEBUG") as captured:
@@ -30,7 +31,7 @@ class PrivacyTests(unittest.IsolatedAsyncioTestCase):
             output = " ".join(captured.output)
             for sensitive in ("PRIVATE_", "987654321", "876543210", "123456789", str(DESTINATION_CHAT_ID)):
                 self.assertNotIn(sensitive, output)
-            self.assertEqual(links.get_user_id("PRIVATE_MESSAGE_ID"), None if anonymous else 987654321)
+            self.assertEqual(links.get_user_id(f"{DESTINATION_CHAT_ID}:PRIVATE_MESSAGE_ID"), None if anonymous else 987654321)
 
     async def test_unknown_events_and_callbacks_do_not_log_payloads(self):
         service = BotService(DummyClient(), DummyRegistry(), DummyAppealLinks())

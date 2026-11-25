@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from constants import STATE_SELECT_CONTACT_MODE, STATE_WAITING_MESSAGE
+from constants import DESTINATION_CHAT_ID, STATE_SELECT_CONTACT_MODE, STATE_SELECT_USER_TYPE, STATE_WAITING_MESSAGE
 from maxbot.models import IncomingEvent
 from maxbot.service import BotService
 
@@ -73,7 +73,9 @@ class BotServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_user_type_button_switches_to_contact_mode(self) -> None:
         client = DummyClient()
         service = BotService(client, DummyRegistry(), DummyAppealLinks())
-        service._reset_user_session(42)
+        session = service._reset_user_session(42)
+        session.department_key = "economic_security"
+        session.state = STATE_SELECT_USER_TYPE
 
         event = IncomingEvent(
             update_type="message_created",
@@ -94,6 +96,7 @@ class BotServiceTests(unittest.IsolatedAsyncioTestCase):
         client = DummyClient()
         service = BotService(client, DummyRegistry(), DummyAppealLinks())
         session = service._reset_user_session(42)
+        session.department_key = "economic_security"
         session.user_type = "employee"
         session.state = STATE_SELECT_CONTACT_MODE
 
@@ -118,6 +121,7 @@ class BotServiceTests(unittest.IsolatedAsyncioTestCase):
         links = DummyAppealLinks()
         service = BotService(client, DummyRegistry(), links)
         session = service._reset_user_session(42)
+        session.department_key = "economic_security"
         session.is_anonymous = False
         session.user_type = "employee"
         session.state = STATE_WAITING_MESSAGE
@@ -137,9 +141,9 @@ class BotServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.sent_messages[0]["chat_id"], -100000000001)
         self.assertIn("Тип пользователя: Сотрудник", client.sent_messages[0]["text"])
         self.assertNotIn("Компания: Демо", client.sent_messages[0]["text"])
-        self.assertNotIn("Подразделение:", client.sent_messages[0]["text"])
+        self.assertIn("Подразделение: Экономическая безопасность", client.sent_messages[0]["text"])
         self.assertNotIn("ID пользователя", client.sent_messages[0]["text"])
-        self.assertEqual(links.get_user_id("mid-1"), 42)
+        self.assertEqual(links.get_user_id(f"{DESTINATION_CHAT_ID}:mid-1"), 42)
 
     async def test_anonymous_message_does_not_save_reply_link(self) -> None:
         client = DummyClient()
@@ -147,6 +151,7 @@ class BotServiceTests(unittest.IsolatedAsyncioTestCase):
         links = DummyAppealLinks()
         service = BotService(client, DummyRegistry(), links)
         session = service._reset_user_session(42)
+        session.department_key = "economic_security"
         session.is_anonymous = True
         session.user_type = "contractor"
         session.state = STATE_WAITING_MESSAGE
@@ -163,7 +168,7 @@ class BotServiceTests(unittest.IsolatedAsyncioTestCase):
 
         await service.handle_update(event)
 
-        self.assertIsNone(links.get_user_id("mid-2"))
+        self.assertIsNone(links.get_user_id(f"{DESTINATION_CHAT_ID}:mid-2"))
         self.assertNotIn("Инструкция для специалиста", client.sent_messages[0]["text"])
 
     async def test_specialist_reply_reaches_user_by_saved_message_link(self) -> None:

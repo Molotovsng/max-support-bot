@@ -8,6 +8,8 @@ from constants import (
     BUTTON_SEND_IDENTIFIED,
     BUTTON_USER_CONTRACTOR,
     BUTTON_USER_EMPLOYEE,
+    BUTTON_USER_INDIVIDUAL,
+    DEPARTMENTS,
 )
 
 
@@ -29,11 +31,17 @@ def inline_keyboard(rows: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
     ]
 
 
+def department_keyboard() -> list[dict[str, Any]]:
+    return inline_keyboard([[message_button(label)] for label in DEPARTMENTS.values()])
+
+
 def user_type_keyboard() -> list[dict[str, Any]]:
     return inline_keyboard(
         [
             [message_button(BUTTON_USER_EMPLOYEE)],
             [message_button(BUTTON_USER_CONTRACTOR)],
+            [message_button(BUTTON_USER_INDIVIDUAL)],
+            [message_button(BUTTON_BACK_TO_START)],
         ]
     )
 

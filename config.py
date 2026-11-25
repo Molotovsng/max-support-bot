@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
+from constants import DEFAULT_DEPARTMENT_CHAT_IDS, DEPARTMENTS
 from maxbot.tls import DEFAULT_API_BASE, validate_api_base
 
 
@@ -47,6 +48,9 @@ class Settings:
     app_port: int = 8000
     users_file: str = "bot_users.json"
     bot_platform: str = "max"
+    department_chat_ids: dict[str, int] = field(default_factory=DEFAULT_DEPARTMENT_CHAT_IDS.copy)
+    department_contacts: dict[str, str] = field(default_factory=dict)
+    specialist_ids: set[int] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if (
@@ -68,6 +72,12 @@ class Settings:
                 raise ValueError(f"{name} must be an integer from {minimum} to {maximum}")
         if not self.users_file.strip() or not self.app_host.strip():
             raise ValueError("USERS_FILE and APP_HOST must not be empty")
+        if self.department_chat_ids.keys() != DEPARTMENTS.keys() or any(
+            type(chat_id) is not int or chat_id == 0 for chat_id in self.department_chat_ids.values()
+        ):
+            raise ValueError("Every department requires a nonzero integer chat ID")
+        if self.specialist_ids is not None and any(type(user_id) is not int or user_id <= 0 for user_id in self.specialist_ids):
+            raise ValueError("SPECIALIST_IDS must contain positive integer user IDs")
         if self.use_webhook:
             if (
                 not self.max_webhook_secret
@@ -102,6 +112,10 @@ def load_settings() -> Settings:
         raise RuntimeError("MAX_BOT_TOKEN is required")
 
     proxy_default = _env_bool("MAX_USE_ENV_PROXY", False) if "HTTPX_TRUST_ENV" not in os.environ else False
+    try:
+        specialist_ids = {int(value) for value in os.getenv("SPECIALIST_IDS", "").split(",") if value.strip()}
+    except ValueError:
+        raise ValueError("SPECIALIST_IDS must contain comma-separated integer user IDs") from None
     return Settings(
         max_bot_token=token,
         max_api_base=os.getenv("MAX_API_BASE", DEFAULT_API_BASE).strip(),
@@ -117,4 +131,10 @@ def load_settings() -> Settings:
         app_port=_env_int("APP_PORT", 8000),
         users_file=os.getenv("USERS_FILE", "bot_users.json"),
         bot_platform=os.getenv("BOT_PLATFORM", "max"),
+        department_chat_ids={
+            key: _env_int(f"DEPARTMENT_CHAT_ID_{key.upper()}", default)
+            for key, default in DEFAULT_DEPARTMENT_CHAT_IDS.items()
+        },
+        department_contacts={key: os.getenv(f"DEPARTMENT_CONTACT_{key.upper()}", "").strip() for key in DEPARTMENTS},
+        specialist_ids=specialist_ids,
     )

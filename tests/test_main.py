@@ -40,9 +40,10 @@ class PollingLoggingTests(unittest.TestCase):
                 handler = next(h for h in root.handlers if isinstance(h, RotatingFileHandler))
                 self.assertGreater(handler.backupCount, 0)
                 handler.maxBytes = 1
-                root.info("Safe event")
-                root.info("Safe event")
+                root.error("PRIVATE_CONTENT_MUST_NOT_APPEAR")
+                root.error("PRIVATE_CONTENT_MUST_NOT_APPEAR")
                 self.assertTrue(path.with_name("test.log.1").exists())
+                self.assertNotIn("PRIVATE_CONTENT", path.read_text(encoding="utf-8"))
             finally:
                 for handler in root.handlers:
                     handler.close()

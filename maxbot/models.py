@@ -30,3 +30,4 @@ class UserSession:
     topic: str | None = None
     is_anonymous: bool = False
     pending_text: str | None = None
+    department_key: str | None = None
