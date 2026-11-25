@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
-from constants import BUTTON_USER_EMPLOYEE, DESTINATION_CHAT_ID, STATE_SELECT_CONTACT_MODE, STATE_WAITING_MESSAGE
+from constants import BUTTON_USER_EMPLOYEE, DEFAULT_DEPARTMENT_CHAT_IDS, DESTINATION_CHAT_ID, STATE_SELECT_USER_TYPE, STATE_WAITING_MESSAGE
 from maxbot.models import IncomingEvent
 from maxbot.normalizer import normalize_update
 from maxbot.service import BotService
@@ -50,6 +50,14 @@ class RoutingSecurityTests(unittest.IsolatedAsyncioTestCase):
             await service.handle_update(self.reply())
             self.assertEqual(path.read_bytes(), original)
             self.assertEqual(self.client.sent_messages[0]["user_id"], 42)
+
+    async def test_a_reply_cannot_use_a_link_from_another_department(self):
+        chat_id = DEFAULT_DEPARTMENT_CHAT_IDS["store_security"]
+        self.links.save_link(f"{chat_id}:appeal-mid", 42)
+        await self.service.handle_update(self.reply())
+        self.assertTrue(all("user_id" not in item for item in self.client.sent_messages))
+        await self.service.handle_update(self.reply(chat_id=chat_id))
+        self.assertEqual(self.client.sent_messages[-1]["user_id"], 42)
 
     async def test_unauthorized_actor_cannot_even_read_routing_registry(self):
         with patch.object(self.links, "get_user_id") as lookup:
@@ -120,6 +128,7 @@ class RoutingSecurityTests(unittest.IsolatedAsyncioTestCase):
                 client, links = DummyClient(), DummyAppealLinks()
                 service = BotService(client, DummyRegistry(), links)
                 session = service._session_for(42)
+                session.department_key = "economic_security"
                 session.state, session.user_type, session.is_anonymous = STATE_WAITING_MESSAGE, "employee", anonymous
                 async def change_mode_during_send(**kwargs):
                     client.sent_messages.append(kwargs)
@@ -127,13 +136,13 @@ class RoutingSecurityTests(unittest.IsolatedAsyncioTestCase):
                     return {"message": {"body": {"mid": "delivered-mid"}}}
                 client.send_message = change_mode_during_send
                 await service.handle_update(self.private())
-                self.assertEqual(links.get_user_id("delivered-mid"), None if anonymous else 42)
+                self.assertEqual(links.get_user_id(f"{DESTINATION_CHAT_ID}:delivered-mid"), None if anonymous else 42)
 
     async def test_callback_uses_actor_and_acknowledges_before_changing_state(self):
-        raw = {"update_type": "message_callback", "callback": {"callback_id": "cb", "payload": "user_type:employee", "user": {"user_id": 42}}, "message": {"sender": {"user_id": 999, "is_bot": True}, "recipient": {"chat_id": 777, "chat_type": "dialog"}}}
+        raw = {"update_type": "message_callback", "callback": {"callback_id": "cb", "payload": "department:economic_security", "user": {"user_id": 42}}, "message": {"sender": {"user_id": 999, "is_bot": True}, "recipient": {"chat_id": 777, "chat_type": "dialog"}}}
         await self.service.handle_update(normalize_update(raw))
         self.assertEqual(len(self.client.callback_answers), 1)
-        self.assertEqual(self.service.sessions[42].state, STATE_SELECT_CONTACT_MODE)
+        self.assertEqual(self.service.sessions[42].state, STATE_SELECT_USER_TYPE)
         self.assertNotIn(999, self.service.sessions)
 
     async def test_callback_without_payload_does_not_use_source_message_text(self):
@@ -159,8 +168,8 @@ class RoutingSecurityTests(unittest.IsolatedAsyncioTestCase):
     async def test_callback_answer_failure_does_not_log_payload_or_lose_button_action(self):
         self.client.answer_callback = AsyncMock(side_effect=RuntimeError("PRIVATE_TOKEN PRIVATE_PAYLOAD"))
         with self.assertLogs("maxbot.service", level="DEBUG") as captured:
-            await self.service.handle_update(self.private(update_type="message_callback", callback_id="cb", callback_payload="user_type:employee"))
-        self.assertEqual(self.service.sessions[42].state, STATE_SELECT_CONTACT_MODE)
+            await self.service.handle_update(self.private(update_type="message_callback", callback_id="cb", callback_payload="department:economic_security"))
+        self.assertEqual(self.service.sessions[42].state, STATE_SELECT_USER_TYPE)
         self.assertNotIn("PRIVATE_", " ".join(captured.output))
 
     async def test_forwarded_message_with_registered_mid_cannot_trigger_reply(self):
